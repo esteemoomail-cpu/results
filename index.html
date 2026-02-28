@@ -113,7 +113,6 @@
       text-align: center;
     }
 
-    /* LOADING */
     .loading {
       text-align: center;
       padding: 60px 20px;
@@ -134,7 +133,6 @@
       to { transform: rotate(360deg); }
     }
 
-    /* ERROR */
     .error {
       text-align: center;
       padding: 60px 20px;
@@ -161,11 +159,10 @@
 
 <script>
 // =============================================
-// PASTE YOUR DEPLOYED APPS SCRIPT WEB APP URL
+// PASTE YOUR APPS SCRIPT WEB APP URL HERE
 // =============================================
 const API_URL = 'https://script.google.com/macros/s/AKfycbzC4kO3oXhkJGMb_IoRIsIh5U4c0gjuCi9bhG0CzfL5jnrYVW-AukAt3M2jw8f3wVvJ/exec';
 
-// Get ref from URL
 const urlParams = new URLSearchParams(window.location.search);
 const ref = urlParams.get('ref');
 
@@ -176,9 +173,7 @@ if (!ref) {
 }
 
 function fetchTransaction(gcashRef) {
-  const url = API_URL + '?ref=' + encodeURIComponent(gcashRef);
-
-  fetch(url)
+  fetch(API_URL + '?ref=' + encodeURIComponent(gcashRef))
     .then(res => res.json())
     .then(data => {
       if (data.found) {
@@ -195,14 +190,13 @@ function fetchTransaction(gcashRef) {
 function renderTransaction(tx) {
   const nums = tx.numbers.split(',').map(n => n.trim()).filter(n => n);
 
-  // Build numbers rows (5 columns)
   let numbersRows = '';
   for (let i = 0; i < nums.length; i += 5) {
     numbersRows += '<tr>';
     for (let j = 0; j < 5; j++) {
       const idx = i + j;
       if (idx < nums.length) {
-        numbersRows += '<td class="idx">' + (idx + 1) + '.</td><td class="num">' + nums[idx] + '</td>';
+        numbersRows += '<td class="idx">' + (idx+1) + '.</td><td class="num">' + nums[idx] + '</td>';
       } else {
         numbersRows += '<td></td><td></td>';
       }
@@ -210,7 +204,6 @@ function renderTransaction(tx) {
     numbersRows += '</tr>';
   }
 
-  // Status class
   let statusClass = 'status-pending';
   const s = tx.status.toUpperCase();
   if (s === 'CONFIRMED' || s === 'APPROVED') statusClass = 'status-confirmed';
@@ -218,7 +211,6 @@ function renderTransaction(tx) {
 
   document.getElementById('content').innerHTML = `
     <div class="title-bar">Transaction Details</div>
-
     <table class="details">
       <tr><td class="label">TX ID</td><td class="value">${tx.txId}</td></tr>
       <tr><td class="label">Date/Time</td><td class="value">${tx.timestamp}</td></tr>
@@ -229,11 +221,8 @@ function renderTransaction(tx) {
       <tr><td class="label">Amount</td><td class="value">₱${tx.amount}</td></tr>
       <tr><td class="label">Status</td><td class="value"><span class="${statusClass}">${tx.status}</span></td></tr>
     </table>
-
     <div class="num-header">Numbers <span>(${nums.length} total)</span></div>
-
     <table class="numbers">${numbersRows}</table>
-
     <div class="footer">Generated: ${new Date().toLocaleString()}</div>
   `;
 
