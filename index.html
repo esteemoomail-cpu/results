@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transaction Details</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      padding: 15px;
+      font-size: 13px;
+      color: #333;
+    }
+
+    .sheet {
+      max-width: 700px;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid #ccc;
+    }
+
+    .title-bar {
+      background: #4a4a4a;
+      color: #fff;
+      padding: 10px 15px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    table.details {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    table.details td {
+      padding: 7px 12px;
+      border: 1px solid #ddd;
+    }
+
+    table.details td.label {
+      background: #f0f0f0;
+      font-weight: bold;
+      width: 130px;
+      white-space: nowrap;
+    }
+
+    table.details td.value {
+      background: #fff;
+    }
+
+    .status-pending { color: #e67e22; font-weight: bold; }
+    .status-confirmed { color: #27ae60; font-weight: bold; }
+    .status-rejected { color: #e74c3c; font-weight: bold; }
+
+    .num-header {
+      background: #4a4a4a;
+      color: #fff;
+      padding: 8px 15px;
+      font-size: 13px;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .num-header span {
+      font-weight: normal;
+      font-size: 12px;
+    }
+
+    table.numbers {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    table.numbers td {
+      padding: 4px 6px;
+      border: 1px solid #eee;
+      text-align: center;
+    }
+
+    table.numbers td.idx {
+      color: #999;
+      font-size: 11px;
+      width: 28px;
+      text-align: right;
+      padding-right: 2px;
+      border-right: none;
+    }
+
+    table.numbers td.num {
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+      font-size: 13px;
+      letter-spacing: 1px;
+      text-align: left;
+      padding-left: 4px;
+      border-left: none;
+    }
+
+    table.numbers tr:nth-child(even) {
+      background: #fafafa;
+    }
+
+    .footer {
+      padding: 8px 15px;
+      background: #f0f0f0;
+      border-top: 1px solid #ddd;
+      font-size: 11px;
+      color: #888;
+      text-align: center;
+    }
+
+    /* LOADING */
+    .loading {
+      text-align: center;
+      padding: 60px 20px;
+      color: #888;
+    }
+
+    .loading .spinner {
+      width: 30px;
+      height: 30px;
+      border: 3px solid #ddd;
+      border-top: 3px solid #4a4a4a;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 15px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ERROR */
+    .error {
+      text-align: center;
+      padding: 60px 20px;
+      color: #e74c3c;
+    }
+
+    @media (max-width: 500px) {
+      body { padding: 5px; font-size: 12px; }
+      table.details td { padding: 5px 8px; }
+      table.details td.label { width: 100px; font-size: 11px; }
+      table.numbers td.num { font-size: 11px; }
+      table.numbers td.idx { font-size: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="sheet" id="content">
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    Loading transaction...
+  </div>
+</div>
+
+<script>
+// =============================================
+// PASTE YOUR DEPLOYED APPS SCRIPT WEB APP URL
+// =============================================
+const API_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
+
+// Get ref from URL
+const urlParams = new URLSearchParams(window.location.search);
+const ref = urlParams.get('ref');
+
+if (!ref) {
+  showError('No reference number provided.');
+} else {
+  fetchTransaction(ref);
+}
+
+function fetchTransaction(gcashRef) {
+  const url = API_URL + '?ref=' + encodeURIComponent(gcashRef);
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      if (data.found) {
+        renderTransaction(data.transaction);
+      } else {
+        showError('No transaction found for: ' + gcashRef);
+      }
+    })
+    .catch(err => {
+      showError('Failed to load. Please try again.');
+    });
+}
+
+function renderTransaction(tx) {
+  const nums = tx.numbers.split(',').map(n => n.trim()).filter(n => n);
+
+  // Build numbers rows (5 columns)
+  let numbersRows = '';
+  for (let i = 0; i < nums.length; i += 5) {
+    numbersRows += '<tr>';
+    for (let j = 0; j < 5; j++) {
+      const idx = i + j;
+      if (idx < nums.length) {
+        numbersRows += '<td class="idx">' + (idx + 1) + '.</td><td class="num">' + nums[idx] + '</td>';
+      } else {
+        numbersRows += '<td></td><td></td>';
+      }
+    }
+    numbersRows += '</tr>';
+  }
+
+  // Status class
+  let statusClass = 'status-pending';
+  const s = tx.status.toUpperCase();
+  if (s === 'CONFIRMED' || s === 'APPROVED') statusClass = 'status-confirmed';
+  if (s === 'REJECTED' || s === 'CANCELLED') statusClass = 'status-rejected';
+
+  document.getElementById('content').innerHTML = `
+    <div class="title-bar">Transaction Details</div>
+
+    <table class="details">
+      <tr><td class="label">TX ID</td><td class="value">${tx.txId}</td></tr>
+      <tr><td class="label">Date/Time</td><td class="value">${tx.timestamp}</td></tr>
+      <tr><td class="label">Name</td><td class="value">${tx.name}</td></tr>
+      <tr><td class="label">Phone</td><td class="value">${tx.phone}</td></tr>
+      <tr><td class="label">GCash Ref#</td><td class="value">${tx.gcashRef}</td></tr>
+      <tr><td class="label">Quantity</td><td class="value">${tx.quantity}</td></tr>
+      <tr><td class="label">Amount</td><td class="value">₱${tx.amount}</td></tr>
+      <tr><td class="label">Status</td><td class="value"><span class="${statusClass}">${tx.status}</span></td></tr>
+    </table>
+
+    <div class="num-header">Numbers <span>(${nums.length} total)</span></div>
+
+    <table class="numbers">${numbersRows}</table>
+
+    <div class="footer">Generated: ${new Date().toLocaleString()}</div>
+  `;
+
+  document.title = tx.name + ' - Numbers';
+}
+
+function showError(msg) {
+  document.getElementById('content').innerHTML = `
+    <div class="error">
+      <h2>❌</h2>
+      <p style="margin-top:10px;">${msg}</p>
+    </div>
+  `;
+}
+</script>
+
+</body>
+</html>
