@@ -64,6 +64,9 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 5;
     }
 
     .num-header span {
@@ -71,33 +74,74 @@
       font-size: 12px;
     }
 
+    .numbers-scroll {
+      max-height: 380px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      position: relative;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .numbers-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .numbers-scroll::-webkit-scrollbar-track {
+      background: #f0f0f0;
+    }
+
+    .numbers-scroll::-webkit-scrollbar-thumb {
+      background: #bbb;
+      border-radius: 3px;
+    }
+
+    .numbers-scroll::-webkit-scrollbar-thumb:hover {
+      background: #999;
+    }
+
+    .scroll-hint {
+      text-align: center;
+      padding: 6px;
+      background: linear-gradient(transparent, #f0f0f0);
+      color: #999;
+      font-size: 11px;
+      animation: pulse 1.5s ease-in-out 3;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
     table.numbers {
       width: 100%;
       border-collapse: collapse;
+      table-layout: fixed;
     }
 
     table.numbers td {
-      padding: 4px 6px;
+      padding: 3px 4px;
       border: 1px solid #eee;
       text-align: center;
+      overflow: hidden;
     }
 
     table.numbers td.idx {
-      color: #999;
-      font-size: 11px;
-      width: 28px;
+      color: #aaa;
+      font-size: 10px;
+      width: 22px;
       text-align: right;
-      padding-right: 2px;
+      padding-right: 1px;
       border-right: none;
     }
 
     table.numbers td.num {
       font-family: 'Courier New', monospace;
       font-weight: bold;
-      font-size: 13px;
-      letter-spacing: 1px;
+      font-size: 12px;
+      letter-spacing: 0.5px;
       text-align: left;
-      padding-left: 4px;
+      padding-left: 3px;
       border-left: none;
     }
 
@@ -149,30 +193,17 @@
       color: #fff;
     }
 
-    .btn-copy:hover {
-      background: #2980b9;
-    }
-
-    .btn-copy:active {
-      transform: scale(0.96);
-    }
-
-    .btn-copy.copied {
-      background: #27ae60;
-    }
+    .btn-copy:hover { background: #2980b9; }
+    .btn-copy:active { transform: scale(0.96); }
+    .btn-copy.copied { background: #27ae60; }
 
     .btn-download {
       background: #2ecc71;
       color: #fff;
     }
 
-    .btn-download:hover {
-      background: #27ae60;
-    }
-
-    .btn-download:active {
-      transform: scale(0.96);
-    }
+    .btn-download:hover { background: #27ae60; }
+    .btn-download:active { transform: scale(0.96); }
 
     .toast {
       position: fixed;
@@ -227,8 +258,10 @@
       body { padding: 5px; font-size: 12px; }
       table.details td { padding: 5px 8px; }
       table.details td.label { width: 100px; font-size: 11px; }
-      table.numbers td.num { font-size: 11px; }
-      table.numbers td.idx { font-size: 10px; }
+      table.numbers td.num { font-size: 10px; letter-spacing: 0; }
+      table.numbers td.idx { font-size: 9px; width: 18px; }
+      table.numbers td { padding: 2px 3px; }
+      .numbers-scroll { max-height: 320px; }
       .action-btn { padding: 8px 14px; font-size: 12px; }
     }
   </style>
@@ -259,10 +292,33 @@ if (!ref) {
   fetchTransaction(ref);
 }
 
+// =============================================
+// FISHER-YATES SHUFFLE (randomize display order)
+// =============================================
+function shuffleArray(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = a[i];
+    a[i] = a[j];
+    a[j] = tmp;
+  }
+  return a;
+}
+
+// =============================================
+// FETCH — with timeout for speed
+// =============================================
 function fetchTransaction(gcashRef) {
-  fetch(API_URL + '?ref=' + encodeURIComponent(gcashRef))
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  fetch(API_URL + '?ref=' + encodeURIComponent(gcashRef), {
+    signal: controller.signal
+  })
     .then(res => res.json())
     .then(data => {
+      clearTimeout(timeout);
       if (data.found) {
         renderTransaction(data.transaction);
       } else {
@@ -270,71 +326,109 @@ function fetchTransaction(gcashRef) {
       }
     })
     .catch(err => {
-      showError('Failed to load. Please try again.');
+      clearTimeout(timeout);
+      if (err.name === 'AbortError') {
+        showError('Request timed out. Please try again.');
+      } else {
+        showError('Failed to load. Please try again.');
+      }
     });
 }
 
+// =============================================
+// RENDER — optimized with array buffer + shuffle
+// =============================================
 function renderTransaction(tx) {
   currentTransaction = tx;
-  const nums = tx.numbers.split(',').map(n => n.trim()).filter(n => n);
-  currentNumbers = nums;
 
-  let numbersRows = '';
-  for (let i = 0; i < nums.length; i += 5) {
-    numbersRows += '<tr>';
-    for (let j = 0; j < 5; j++) {
+  // Parse numbers once
+  const nums = tx.numbers.split(',');
+  const len = nums.length;
+  const cleaned = new Array(len);
+  let count = 0;
+  for (let i = 0; i < len; i++) {
+    const n = nums[i].trim();
+    if (n) cleaned[count++] = n;
+  }
+  cleaned.length = count;
+
+  // Store sorted for copy/download, shuffle for display
+  currentNumbers = cleaned.slice();
+  const displayNums = shuffleArray(cleaned);
+
+  // Columns per row: 6 on desktop, auto-adjusts via table-layout
+  const cols = 6;
+
+  // Build numbers table using array buffer (faster than string concat)
+  const parts = [];
+  for (let i = 0; i < count; i += cols) {
+    parts.push('<tr>');
+    for (let j = 0; j < cols; j++) {
       const idx = i + j;
-      if (idx < nums.length) {
-        numbersRows += '<td class="idx">' + (idx+1) + '.</td><td class="num">' + nums[idx] + '</td>';
+      if (idx < count) {
+        parts.push('<td class="idx">', String(idx + 1), '.</td><td class="num">', displayNums[idx], '</td>');
       } else {
-        numbersRows += '<td></td><td></td>';
+        parts.push('<td></td><td></td>');
       }
     }
-    numbersRows += '</tr>';
+    parts.push('</tr>');
   }
+  const numbersHTML = parts.join('');
 
+  // Status class
   let statusClass = 'status-pending';
   const s = tx.status.toUpperCase();
   if (s === 'CONFIRMED' || s === 'APPROVED') statusClass = 'status-confirmed';
   if (s === 'REJECTED' || s === 'CANCELLED') statusClass = 'status-rejected';
 
-  document.getElementById('content').innerHTML = `
-    <div class="title-bar">Transaction Details</div>
-    <table class="details">
-      <tr><td class="label">TX ID</td><td class="value">${tx.txId}</td></tr>
-      <tr><td class="label">Date/Time</td><td class="value">${tx.timestamp}</td></tr>
-      <tr><td class="label">Name</td><td class="value">${tx.name}</td></tr>
-      <tr><td class="label">Phone</td><td class="value">${tx.phone}</td></tr>
-      <tr><td class="label">GCash Ref#</td><td class="value">${tx.gcashRef}</td></tr>
-      <tr><td class="label">Quantity</td><td class="value">${tx.quantity}</td></tr>
-      <tr><td class="label">Amount</td><td class="value">₱${tx.amount}</td></tr>
-      <tr><td class="label">Status</td><td class="value"><span class="${statusClass}">${tx.status}</span></td></tr>
-    </table>
-    <div class="num-header">Numbers <span>(${nums.length} total)</span></div>
-    <table class="numbers">${numbersRows}</table>
-    <div class="action-bar">
-      <button class="action-btn btn-copy" id="btnCopy" onclick="copyAllNumbers()">
-        <svg id="copyIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-        </svg>
-        <span id="copyText">Copy All Numbers</span>
-      </button>
-      <button class="action-btn btn-download" onclick="downloadData()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        Download TXT
-      </button>
-    </div>
-    <div class="footer">Generated: ${new Date().toLocaleString()}</div>
-  `;
+  // Show scroll hint only when many numbers
+  const scrollHint = count > 30
+    ? '<div class="scroll-hint">↕ Scroll to see all numbers</div>'
+    : '';
+
+  // Single DOM write for speed
+  document.getElementById('content').innerHTML =
+    '<div class="title-bar">Transaction Details</div>' +
+    '<table class="details">' +
+      '<tr><td class="label">TX ID</td><td class="value">' + tx.txId + '</td></tr>' +
+      '<tr><td class="label">Date/Time</td><td class="value">' + tx.timestamp + '</td></tr>' +
+      '<tr><td class="label">Name</td><td class="value">' + tx.name + '</td></tr>' +
+      '<tr><td class="label">Phone</td><td class="value">' + tx.phone + '</td></tr>' +
+      '<tr><td class="label">GCash Ref#</td><td class="value">' + tx.gcashRef + '</td></tr>' +
+      '<tr><td class="label">Quantity</td><td class="value">' + tx.quantity + '</td></tr>' +
+      '<tr><td class="label">Amount</td><td class="value">₱' + tx.amount + '</td></tr>' +
+      '<tr><td class="label">Status</td><td class="value"><span class="' + statusClass + '">' + tx.status + '</span></td></tr>' +
+    '</table>' +
+    '<div class="num-header">Numbers <span>(' + count + ' total — shuffled)</span></div>' +
+    '<div class="numbers-scroll" id="numScroll">' +
+      '<table class="numbers">' + numbersHTML + '</table>' +
+    '</div>' +
+    scrollHint +
+    '<div class="action-bar">' +
+      '<button class="action-btn btn-copy" id="btnCopy" onclick="copyAllNumbers()">' +
+        '<svg id="copyIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>' +
+          '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>' +
+        '</svg>' +
+        '<span id="copyText">Copy All Numbers</span>' +
+      '</button>' +
+      '<button class="action-btn btn-download" onclick="downloadData()">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>' +
+          '<polyline points="7 10 12 15 17 10"/>' +
+          '<line x1="12" y1="15" x2="12" y2="3"/>' +
+        '</svg>' +
+        'Download TXT' +
+      '</button>' +
+    '</div>' +
+    '<div class="footer">Generated: ' + new Date().toLocaleString() + '</div>';
 
   document.title = tx.name + ' - Numbers';
 }
 
+// =============================================
+// COPY ALL NUMBERS
+// =============================================
 function copyAllNumbers() {
   if (currentNumbers.length === 0) return;
 
@@ -384,38 +478,41 @@ function showCopySuccess(btn, copyText, copyIcon) {
   }, 2000);
 }
 
+// =============================================
+// DOWNLOAD TXT
+// =============================================
 function downloadData() {
   if (!currentTransaction) return;
 
   const tx = currentTransaction;
-  const divider = '════════════════════════════════════════';
-  const thinDiv = '────────────────────────────────────────';
+  const div = '════════════════════════════════════════';
+  const thin = '────────────────────────────────────────';
+  const len = currentNumbers.length;
 
-  let content = '';
-  content += divider + '\n';
-  content += '          TRANSACTION DETAILS\n';
-  content += divider + '\n\n';
-  content += 'TX ID        : ' + tx.txId + '\n';
-  content += 'Date/Time    : ' + tx.timestamp + '\n';
-  content += 'Name         : ' + tx.name + '\n';
-  content += 'Phone        : ' + tx.phone + '\n';
-  content += 'GCash Ref#   : ' + tx.gcashRef + '\n';
-  content += 'Quantity     : ' + tx.quantity + '\n';
-  content += 'Amount       : ₱' + tx.amount + '\n';
-  content += 'Status       : ' + tx.status + '\n\n';
-  content += divider + '\n';
-  content += '  NUMBERS (' + currentNumbers.length + ' total)\n';
-  content += divider + '\n\n';
+  // Use array buffer for fast string building
+  const p = [
+    div, '\n          TRANSACTION DETAILS\n', div, '\n\n',
+    'TX ID        : ', tx.txId, '\n',
+    'Date/Time    : ', tx.timestamp, '\n',
+    'Name         : ', tx.name, '\n',
+    'Phone        : ', tx.phone, '\n',
+    'GCash Ref#   : ', tx.gcashRef, '\n',
+    'Quantity     : ', String(tx.quantity), '\n',
+    'Amount       : ₱', String(tx.amount), '\n',
+    'Status       : ', tx.status, '\n\n',
+    div, '\n  NUMBERS (', String(len), ' total)\n', div, '\n\n'
+  ];
 
-  for (let i = 0; i < currentNumbers.length; i++) {
-    const num = (i + 1).toString().padStart(3, ' ');
-    content += '  ' + num + '.  ' + currentNumbers[i] + '\n';
+  for (let i = 0; i < len; i++) {
+    const n = String(i + 1);
+    p.push('  ');
+    if (n.length < 3) p.push(n.length < 2 ? '  ' : ' ');
+    p.push(n, '.  ', currentNumbers[i], '\n');
   }
 
-  content += '\n' + thinDiv + '\n';
-  content += 'Generated: ' + new Date().toLocaleString() + '\n';
-  content += thinDiv + '\n';
+  p.push('\n', thin, '\nGenerated: ', new Date().toLocaleString(), '\n', thin, '\n');
 
+  const content = p.join('');
   const filename = tx.name.replace(/[^a-zA-Z0-9]/g, '_') + '_' + tx.txId + '.txt';
 
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -431,22 +528,22 @@ function downloadData() {
   showToast('📄 File downloaded!');
 }
 
+// =============================================
+// TOAST
+// =============================================
 function showToast(message) {
   const toast = document.getElementById('toast');
   toast.textContent = message;
   toast.classList.add('show');
-  setTimeout(() => {
-    toast.classList.remove('show');
-  }, 2500);
+  setTimeout(() => toast.classList.remove('show'), 2500);
 }
 
+// =============================================
+// ERROR
+// =============================================
 function showError(msg) {
-  document.getElementById('content').innerHTML = `
-    <div class="error">
-      <h2>❌</h2>
-      <p style="margin-top:10px;">${msg}</p>
-    </div>
-  `;
+  document.getElementById('content').innerHTML =
+    '<div class="error"><h2>❌</h2><p style="margin-top:10px;">' + msg + '</p></div>';
 }
 </script>
 
