@@ -63,10 +63,6 @@
       font-weight: bold;
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      position: sticky;
-      top: 0;
-      z-index: 5;
     }
 
     .num-header span {
@@ -74,74 +70,33 @@
       font-size: 12px;
     }
 
-    .numbers-scroll {
-      max-height: 380px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      position: relative;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .numbers-scroll::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    .numbers-scroll::-webkit-scrollbar-track {
-      background: #f0f0f0;
-    }
-
-    .numbers-scroll::-webkit-scrollbar-thumb {
-      background: #bbb;
-      border-radius: 3px;
-    }
-
-    .numbers-scroll::-webkit-scrollbar-thumb:hover {
-      background: #999;
-    }
-
-    .scroll-hint {
-      text-align: center;
-      padding: 6px;
-      background: linear-gradient(transparent, #f0f0f0);
-      color: #999;
-      font-size: 11px;
-      animation: pulse 1.5s ease-in-out 3;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 0.5; }
-      50% { opacity: 1; }
-    }
-
     table.numbers {
       width: 100%;
       border-collapse: collapse;
-      table-layout: fixed;
     }
 
     table.numbers td {
-      padding: 3px 4px;
+      padding: 4px 6px;
       border: 1px solid #eee;
       text-align: center;
-      overflow: hidden;
     }
 
     table.numbers td.idx {
-      color: #aaa;
-      font-size: 10px;
-      width: 22px;
+      color: #999;
+      font-size: 11px;
+      width: 28px;
       text-align: right;
-      padding-right: 1px;
+      padding-right: 2px;
       border-right: none;
     }
 
     table.numbers td.num {
       font-family: 'Courier New', monospace;
       font-weight: bold;
-      font-size: 12px;
-      letter-spacing: 0.5px;
+      font-size: 13px;
+      letter-spacing: 1px;
       text-align: left;
-      padding-left: 3px;
+      padding-left: 4px;
       border-left: none;
     }
 
@@ -156,76 +111,6 @@
       font-size: 11px;
       color: #888;
       text-align: center;
-    }
-
-    .action-bar {
-      display: flex;
-      gap: 10px;
-      padding: 12px 15px;
-      background: #f9f9f9;
-      border-top: 1px solid #eee;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-
-    .action-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 9px 18px;
-      font-size: 13px;
-      font-weight: bold;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-family: Arial, sans-serif;
-    }
-
-    .action-btn svg {
-      width: 16px;
-      height: 16px;
-      flex-shrink: 0;
-    }
-
-    .btn-copy {
-      background: #3498db;
-      color: #fff;
-    }
-
-    .btn-copy:hover { background: #2980b9; }
-    .btn-copy:active { transform: scale(0.96); }
-    .btn-copy.copied { background: #27ae60; }
-
-    .btn-download {
-      background: #2ecc71;
-      color: #fff;
-    }
-
-    .btn-download:hover { background: #27ae60; }
-    .btn-download:active { transform: scale(0.96); }
-
-    .toast {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%) translateY(80px);
-      background: #333;
-      color: #fff;
-      padding: 10px 22px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: bold;
-      opacity: 0;
-      transition: all 0.3s ease;
-      z-index: 9999;
-      pointer-events: none;
-      white-space: nowrap;
-    }
-
-    .toast.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
     }
 
     .loading {
@@ -258,11 +143,8 @@
       body { padding: 5px; font-size: 12px; }
       table.details td { padding: 5px 8px; }
       table.details td.label { width: 100px; font-size: 11px; }
-      table.numbers td.num { font-size: 10px; letter-spacing: 0; }
-      table.numbers td.idx { font-size: 9px; width: 18px; }
-      table.numbers td { padding: 2px 3px; }
-      .numbers-scroll { max-height: 320px; }
-      .action-btn { padding: 8px 14px; font-size: 12px; }
+      table.numbers td.num { font-size: 11px; }
+      table.numbers td.idx { font-size: 10px; }
     }
   </style>
 </head>
@@ -275,16 +157,14 @@
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
-
 <script>
+// =============================================
+// PASTE YOUR APPS SCRIPT WEB APP URL HERE
+// =============================================
 const API_URL = 'https://script.google.com/macros/s/AKfycbzC4kO3oXhkJGMb_IoRIsIh5U4c0gjuCi9bhG0CzfL5jnrYVW-AukAt3M2jw8f3wVvJ/exec';
 
 const urlParams = new URLSearchParams(window.location.search);
 const ref = urlParams.get('ref');
-
-let currentTransaction = null;
-let currentNumbers = [];
 
 if (!ref) {
   showError('No reference number provided.');
@@ -292,33 +172,10 @@ if (!ref) {
   fetchTransaction(ref);
 }
 
-// =============================================
-// FISHER-YATES SHUFFLE (randomize display order)
-// =============================================
-function shuffleArray(arr) {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const tmp = a[i];
-    a[i] = a[j];
-    a[j] = tmp;
-  }
-  return a;
-}
-
-// =============================================
-// FETCH — with timeout for speed
-// =============================================
 function fetchTransaction(gcashRef) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-
-  fetch(API_URL + '?ref=' + encodeURIComponent(gcashRef), {
-    signal: controller.signal
-  })
+  fetch(API_URL + '?ref=' + encodeURIComponent(gcashRef))
     .then(res => res.json())
     .then(data => {
-      clearTimeout(timeout);
       if (data.found) {
         renderTransaction(data.transaction);
       } else {
@@ -326,224 +183,59 @@ function fetchTransaction(gcashRef) {
       }
     })
     .catch(err => {
-      clearTimeout(timeout);
-      if (err.name === 'AbortError') {
-        showError('Request timed out. Please try again.');
-      } else {
-        showError('Failed to load. Please try again.');
-      }
+      showError('Failed to load. Please try again.');
     });
 }
 
-// =============================================
-// RENDER — optimized with array buffer + shuffle
-// =============================================
 function renderTransaction(tx) {
-  currentTransaction = tx;
+  const nums = tx.numbers.split(',').map(n => n.trim()).filter(n => n);
 
-  // Parse numbers once
-  const nums = tx.numbers.split(',');
-  const len = nums.length;
-  const cleaned = new Array(len);
-  let count = 0;
-  for (let i = 0; i < len; i++) {
-    const n = nums[i].trim();
-    if (n) cleaned[count++] = n;
-  }
-  cleaned.length = count;
-
-  // Store sorted for copy/download, shuffle for display
-  currentNumbers = cleaned.slice();
-  const displayNums = shuffleArray(cleaned);
-
-  // Columns per row: 6 on desktop, auto-adjusts via table-layout
-  const cols = 6;
-
-  // Build numbers table using array buffer (faster than string concat)
-  const parts = [];
-  for (let i = 0; i < count; i += cols) {
-    parts.push('<tr>');
-    for (let j = 0; j < cols; j++) {
+  let numbersRows = '';
+  for (let i = 0; i < nums.length; i += 5) {
+    numbersRows += '<tr>';
+    for (let j = 0; j < 5; j++) {
       const idx = i + j;
-      if (idx < count) {
-        parts.push('<td class="idx">', String(idx + 1), '.</td><td class="num">', displayNums[idx], '</td>');
+      if (idx < nums.length) {
+        numbersRows += '<td class="idx">' + (idx+1) + '.</td><td class="num">' + nums[idx] + '</td>';
       } else {
-        parts.push('<td></td><td></td>');
+        numbersRows += '<td></td><td></td>';
       }
     }
-    parts.push('</tr>');
+    numbersRows += '</tr>';
   }
-  const numbersHTML = parts.join('');
 
-  // Status class
   let statusClass = 'status-pending';
   const s = tx.status.toUpperCase();
   if (s === 'CONFIRMED' || s === 'APPROVED') statusClass = 'status-confirmed';
   if (s === 'REJECTED' || s === 'CANCELLED') statusClass = 'status-rejected';
 
-  // Show scroll hint only when many numbers
-  const scrollHint = count > 30
-    ? '<div class="scroll-hint">↕ Scroll to see all numbers</div>'
-    : '';
-
-  // Single DOM write for speed
-  document.getElementById('content').innerHTML =
-    '<div class="title-bar">Transaction Details</div>' +
-    '<table class="details">' +
-      '<tr><td class="label">TX ID</td><td class="value">' + tx.txId + '</td></tr>' +
-      '<tr><td class="label">Date/Time</td><td class="value">' + tx.timestamp + '</td></tr>' +
-      '<tr><td class="label">Name</td><td class="value">' + tx.name + '</td></tr>' +
-      '<tr><td class="label">Phone</td><td class="value">' + tx.phone + '</td></tr>' +
-      '<tr><td class="label">GCash Ref#</td><td class="value">' + tx.gcashRef + '</td></tr>' +
-      '<tr><td class="label">Quantity</td><td class="value">' + tx.quantity + '</td></tr>' +
-      '<tr><td class="label">Amount</td><td class="value">₱' + tx.amount + '</td></tr>' +
-      '<tr><td class="label">Status</td><td class="value"><span class="' + statusClass + '">' + tx.status + '</span></td></tr>' +
-    '</table>' +
-    '<div class="num-header">Numbers <span>(' + count + ' total — shuffled)</span></div>' +
-    '<div class="numbers-scroll" id="numScroll">' +
-      '<table class="numbers">' + numbersHTML + '</table>' +
-    '</div>' +
-    scrollHint +
-    '<div class="action-bar">' +
-      '<button class="action-btn btn-copy" id="btnCopy" onclick="copyAllNumbers()">' +
-        '<svg id="copyIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-          '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>' +
-          '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>' +
-        '</svg>' +
-        '<span id="copyText">Copy All Numbers</span>' +
-      '</button>' +
-      '<button class="action-btn btn-download" onclick="downloadData()">' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-          '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>' +
-          '<polyline points="7 10 12 15 17 10"/>' +
-          '<line x1="12" y1="15" x2="12" y2="3"/>' +
-        '</svg>' +
-        'Download TXT' +
-      '</button>' +
-    '</div>' +
-    '<div class="footer">Generated: ' + new Date().toLocaleString() + '</div>';
+  document.getElementById('content').innerHTML = `
+    <div class="title-bar">Transaction Details</div>
+    <table class="details">
+      <tr><td class="label">TX ID</td><td class="value">${tx.txId}</td></tr>
+      <tr><td class="label">Date/Time</td><td class="value">${tx.timestamp}</td></tr>
+      <tr><td class="label">Name</td><td class="value">${tx.name}</td></tr>
+      <tr><td class="label">Phone</td><td class="value">${tx.phone}</td></tr>
+      <tr><td class="label">GCash Ref#</td><td class="value">${tx.gcashRef}</td></tr>
+      <tr><td class="label">Quantity</td><td class="value">${tx.quantity}</td></tr>
+      <tr><td class="label">Amount</td><td class="value">₱${tx.amount}</td></tr>
+      <tr><td class="label">Status</td><td class="value"><span class="${statusClass}">${tx.status}</span></td></tr>
+    </table>
+    <div class="num-header">Numbers <span>(${nums.length} total)</span></div>
+    <table class="numbers">${numbersRows}</table>
+    <div class="footer">Generated: ${new Date().toLocaleString()}</div>
+  `;
 
   document.title = tx.name + ' - Numbers';
 }
 
-// =============================================
-// COPY ALL NUMBERS
-// =============================================
-function copyAllNumbers() {
-  if (currentNumbers.length === 0) return;
-
-  const text = currentNumbers.join('\n');
-  const btn = document.getElementById('btnCopy');
-  const copyText = document.getElementById('copyText');
-  const copyIcon = document.getElementById('copyIcon');
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(() => {
-      showCopySuccess(btn, copyText, copyIcon);
-      showToast('✅ ' + currentNumbers.length + ' numbers copied!');
-    }).catch(() => {
-      fallbackCopy(text, btn, copyText, copyIcon);
-    });
-  } else {
-    fallbackCopy(text, btn, copyText, copyIcon);
-  }
-}
-
-function fallbackCopy(text, btn, copyText, copyIcon) {
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.left = '-9999px';
-  document.body.appendChild(ta);
-  ta.select();
-  try {
-    document.execCommand('copy');
-    showCopySuccess(btn, copyText, copyIcon);
-    showToast('✅ ' + currentNumbers.length + ' numbers copied!');
-  } catch (e) {
-    showToast('❌ Copy failed. Try manually.');
-  }
-  document.body.removeChild(ta);
-}
-
-function showCopySuccess(btn, copyText, copyIcon) {
-  btn.classList.add('copied');
-  copyText.textContent = 'Copied!';
-  copyIcon.innerHTML = '<polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
-
-  setTimeout(() => {
-    btn.classList.remove('copied');
-    copyText.textContent = 'Copy All Numbers';
-    copyIcon.innerHTML = '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>';
-  }, 2000);
-}
-
-// =============================================
-// DOWNLOAD TXT
-// =============================================
-function downloadData() {
-  if (!currentTransaction) return;
-
-  const tx = currentTransaction;
-  const div = '════════════════════════════════════════';
-  const thin = '────────────────────────────────────────';
-  const len = currentNumbers.length;
-
-  // Use array buffer for fast string building
-  const p = [
-    div, '\n          TRANSACTION DETAILS\n', div, '\n\n',
-    'TX ID        : ', tx.txId, '\n',
-    'Date/Time    : ', tx.timestamp, '\n',
-    'Name         : ', tx.name, '\n',
-    'Phone        : ', tx.phone, '\n',
-    'GCash Ref#   : ', tx.gcashRef, '\n',
-    'Quantity     : ', String(tx.quantity), '\n',
-    'Amount       : ₱', String(tx.amount), '\n',
-    'Status       : ', tx.status, '\n\n',
-    div, '\n  NUMBERS (', String(len), ' total)\n', div, '\n\n'
-  ];
-
-  for (let i = 0; i < len; i++) {
-    const n = String(i + 1);
-    p.push('  ');
-    if (n.length < 3) p.push(n.length < 2 ? '  ' : ' ');
-    p.push(n, '.  ', currentNumbers[i], '\n');
-  }
-
-  p.push('\n', thin, '\nGenerated: ', new Date().toLocaleString(), '\n', thin, '\n');
-
-  const content = p.join('');
-  const filename = tx.name.replace(/[^a-zA-Z0-9]/g, '_') + '_' + tx.txId + '.txt';
-
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-
-  showToast('📄 File downloaded!');
-}
-
-// =============================================
-// TOAST
-// =============================================
-function showToast(message) {
-  const toast = document.getElementById('toast');
-  toast.textContent = message;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2500);
-}
-
-// =============================================
-// ERROR
-// =============================================
 function showError(msg) {
-  document.getElementById('content').innerHTML =
-    '<div class="error"><h2>❌</h2><p style="margin-top:10px;">' + msg + '</p></div>';
+  document.getElementById('content').innerHTML = `
+    <div class="error">
+      <h2>❌</h2>
+      <p style="margin-top:10px;">${msg}</p>
+    </div>
+  `;
 }
 </script>
 
